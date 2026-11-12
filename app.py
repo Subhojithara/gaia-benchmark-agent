@@ -13,6 +13,19 @@ from dotenv import load_dotenv
 from agent import GaiaAgent
 from answer_utils import DEFAULT_API_URL, normalize_answer
 
+try:
+    import spaces
+except ImportError:  # Local run without the `spaces` package (no ZeroGPU).
+    class _SpacesFallback:
+        @staticmethod
+        def GPU(*_args, **_kwargs):
+            def _decorator(fn):
+                return fn
+
+            return _decorator
+
+    spaces = _SpacesFallback()
+
 load_dotenv()
 
 CACHE_FILE = Path(".cache/answers_cache.json")
@@ -44,6 +57,10 @@ def _save_answer_cache(cache: dict[str, str], cache_path: Path | None = None) ->
     tmp_path.replace(target)
 
 
+# ZeroGPU requires at least one @spaces.GPU function for the Space to start.
+# The agent's models run remotely (NVIDIA NIM), so the long evaluation runs
+# on CPU; this short utility carries the decorator so the Space can start.
+@spaces.GPU(duration=60)
 def clear_cache() -> str:
     if CACHE_FILE.is_file():
         CACHE_FILE.unlink()
